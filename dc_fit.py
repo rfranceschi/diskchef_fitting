@@ -1,0 +1,326 @@
+import logging
+import shutil
+import tempfile
+import traceback
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Union, List, Type, Dict
+import os
+
+import astropy.units as u
+import diskchef
+import numpy as np
+from matplotlib import pyplot as plt
+
+import diskchef
+from diskchef.chemistry import NonzeroChemistryWB2014, SciKitChemistry
+from diskchef.dust_opacity import dust_files
+from diskchef.fitting.fitters import UltraNestFitter, Parameter
+from diskchef.lamda.line import Line
+from diskchef.maps import RadMCRTSingleCall, RadMCTherm
+from diskchef.physics import DustPopulation
+from diskchef.physics.williams_best import WilliamsBest100au
+from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
+from diskchef.uv.uvfits_to_visibilities_ascii import UVFits
+
+logging.basicConfig(level=logging.WARNING)
+
+ENV_VARS = dict(
+    PYTHONUNBUFFERED=1, MKL_NUM_THREADS=1, NUMEXPR_NUM_THREADS=1, OMP_NUM_THREADS=1
+)
+
+for key, value in ENV_VARS.items():
+    os.environ[key] = str(value)
+
+uvs = {
+    "13CO J=2-1": UVFits('observations/s-Line-18-13CO_4+D_cut.uvfits', sum=False),
+    "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
+    "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
+}
+# IMAGER_EXEC = "bash -lc imager -nw"
+# IMAGER_EXEC = "imager.exe -nw"
+
+plt.rc('savefig', dpi=300)
+
+@dataclass
+class ModelFit:
+    disk: str
+    directory: Union[Path, str] = None
+    line_list: List[Line] = None
+    physics_class: Type[diskchef.physics.base.PhysicsModel] = WilliamsBest100au
+    physics_params: dict = field(default_factory=dict)
+    chemistry_class: Type[diskchef.chemistry.base.ChemistryBase] = NonzeroChemistryWB2014
+    chemical_params: dict = field(default_factory=dict)
+    mstar: u.Msun = 1 * u.Msun
+    rstar: u.au = None
+    tstar: u.K = None
+    inclination: u.deg = 0 * u.deg
+    position_angle: u.deg = 0 * u.deg
+    distance: u.pc = 100 * u.pc
+    velocity: u.km/u.s = 0 * u.km / u.s
+    nphot_therm: int = 1e7
+    npix: int = 100
+    channels: int = 31
+    dust_opacity_file: Union[Path, str] = dust_files("diana")[0]
+    radial_bins_rt: int = None
+    vertical_bins_rt: int = None
+    line_window_width: u.km / u.s = 15 * u.km / u.s
+    radmc_lines_run_kwargs: dict = field(default_factory=dict)
+    mctherm_threads = 1
+
+    def __post_init__(self):
+        self.dust = None
+        self.disk_physical_model: diskchef.physics.PhysicsModel = None
+        self.disk_chemical_model: diskchef.chemistry.ChemistryModel = None
+        self.radmc_model: RadMCRTSingleCall = None
+        self.chi2_dict: dict = None
+        self._check_radius_temperature()
+        self._update_defaults()
+        self._initialize_working_dir()
+        self.initialize_physics()
+        self.initialize_dust()
+        self.initialize_chemistry()
+
+    def run_chemistry(self):
+        self.disk_physical_model.cosmic_ray_padovani18()
+        self.disk_physical_model.ionization()
+        self.disk_chemical_model.run_chemistry()
+        self.disk_chemical_model.table['CO'][self.disk_chemical_model.table['Gas temperature'] > 200 * u.K] = 1e-10
+        self.add_co_isotopologs()
+
+    def plot(self, filename="model.png", species1="CO", species2=None):
+        fig, ax = plt.subplots(2, 2, figsize=(10, 10), sharex=True, sharey=True)
+        self.disk_physical_model.plot_density(axes=ax[0, 0])
+        self.disk_physical_model.plot_temperatures(axes=ax[1, 0])
+        self.disk_chemical_model.plot_chemistry(species1=species1, species2=species2, axes=ax[0, 1])
+        self.disk_chemical_model.plot_absolute_chemistry(species1=species1, species2=species2, axes=ax[1, 1])
+        fig.savefig(filename)
+        # try:
+        self.radmc_model.channel_maps()
+        # except Exception as e:
+        #     print(e)
+
+    def run_line_radiative_transfer(
+            self,
+            run_kwargs: dict = None,
+            **kwargs
+    ):
+        """Run line radiative transfer"""
+        folder_rt_gas = self.gas_directory
+        folder_rt_gas.mkdir(parents=True, exist_ok=True)
+
+        disk_map = RadMCRTSingleCall(
+            chemistry=self.disk_chemical_model, line_list=self.line_list,
+            radii_bins=self.radial_bins_rt, theta_bins=self.vertical_bins_rt,
+            folder=folder_rt_gas, velocity=self.velocity, **kwargs
+        )
+
+        disk_map.create_files(channels_per_line=self.channels, window_width=self.line_window_width)
+
+        disk_map.run(
+            inclination=self.inclination,
+            position_angle=self.position_angle,
+            distance=self.distance,
+            npix=self.npix,
+            **self.radmc_lines_run_kwargs
+        )
+        self.radmc_model = disk_map
+
+    def add_co_isotopologs(self, _13c: float = 77, _18o: float = 560):
+        self.disk_chemical_model.table['13CO'] = self.disk_chemical_model.table['CO'] / _13c
+        self.disk_chemical_model.table['H13CO+'] = self.disk_chemical_model.table['HCO+'] / _13c
+        self.disk_chemical_model.table['C18O'] = self.disk_chemical_model.table['CO'] / _18o
+        self.disk_chemical_model.table['13C18O'] = self.disk_chemical_model.table['CO'] / (_13c * _18o)
+        # remember to fix the next abundance
+        # self.disk_chemical_model.table['C17O'] = self.disk_chemical_model.table['CO'] / (
+        #         560 * 5)  # http://articles.adsabs.harvard.edu/pdf/1994ARA%26A..32..191W
+
+    def initialize_chemistry(self):
+        self.disk_chemical_model = self.chemistry_class(physics=self.disk_physical_model, **self.chemical_params)
+
+    def initialize_dust(self):
+        self.dust = DustPopulation(self.dust_opacity_file,
+                                   table=self.disk_physical_model.table,
+                                   name="Dust")
+        self.dust.write_to_table()
+
+    def initialize_physics(self):
+        self.disk_physical_model = self.physics_class(**self.physics_params)
+
+    def _update_defaults(self):
+        if self.radial_bins_rt is None:
+            self.radial_bins_rt = self.physics_params.get("radial_bins", 100)
+        if self.vertical_bins_rt is None:
+            self.radial_bins_rt = self.physics_params.get("vertical_bins", 100)
+
+    def _initialize_working_dir(self):
+        if self.directory is None:
+            self.directory = Path(self.disk)
+        else:
+            self.directory = Path(self.directory)
+        self.directory.mkdir(exist_ok=True, parents=True)
+        with open(self.directory / "model_description.txt", "w") as fff:
+            fff.write(repr(self))
+            fff.write("\n")
+            fff.write(str(self.__dict__))
+
+    def _check_radius_temperature(self):
+        if self.rstar is None and self.tstar is None:
+            yb = YorkeBodenheimer2008()
+            self.rstar = yb.radius(self.mstar)
+            self.tstar = yb.effective_temperature(self.mstar)
+
+    def mctherm(self, threads=None):
+        """Run thermal radiative transfer for dust temperature calculation"""
+        if threads is None:
+            threads = self.mctherm_threads
+        folder_rt_dust = self.dust_directory
+        folder_rt_dust.mkdir(parents=True, exist_ok=True)
+
+        self.mctherm_model = RadMCTherm(
+            chemistry=self.disk_chemical_model,
+            folder=folder_rt_dust,
+            nphot_therm=self.nphot_therm,
+            star_radius=self.rstar,
+            star_effective_temperature=self.tstar
+        )
+
+        self.mctherm_model.create_files()
+        self.mctherm_model.run(threads=threads)
+        self.mctherm_model.read_dust_temperature()
+
+    @property
+    def gas_directory(self):
+        return self.directory / "radmc_gas"
+
+    @property
+    def dust_directory(self):
+        return self.directory / "radmc_dust"
+
+    def chi2(self, uvs: Dict[str, UVFits], **kwargs):
+        """
+
+        Args:
+            uvs: dictionary in a form of {line.name: uvt for line is self.line_list}
+
+        Returns:
+            sum of chi2 between uvs and lines
+        """
+
+        self.chi2_dict = {
+            name: uv.chi2_with(self.gas_directory / f"{name}_image.fits", threads=self.mctherm_threads, **kwargs)
+            for name, uv in uvs.items()
+            if name in [line.name for line in self.line_list]
+        }
+        return sum(self.chi2_dict.values())
+
+def my_likelihood(params, just_model_creation: bool = False) -> float:
+    tapering_radius, inner_radius, log_gas_mass, \
+    temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, velocity = params
+
+    lines = [
+        Line(name='CO J=2-1', transition=2, molecule='CO'),
+        Line(name='13CO J=2-1', transition=2, molecule='13CO'),
+        # Line(name='C18O J=2-1', transition=2, molecule='C18O'),
+        Line(name='HCO+ J=3-2', transition=3, molecule='HCO+'),
+        # Line(name='DCO+ J=3-2', transition=3, molecule='DCO+'),
+        # Line(name='H13CO+ J=3-2', transition=3, molecule='H13CO+'),
+    ]
+
+    directory = Path('fit')
+    directory = Path(os.environ['JOB_SHMTMPDIR']) / "diskchef"
+    logging.warning(directory)
+    directory.mkdir(exist_ok=True, parents=True)
+    try:
+        temp_dir = tempfile.TemporaryDirectory(prefix='fit_', dir=directory)
+        model = ModelFit(
+            disk="DN Tau",
+            directory=temp_dir.name,
+            line_list=lines,
+            physics_class=WilliamsBest100au,
+            chemistry_class=SciKitChemistry,
+            physics_params=dict(
+                r_min=1 * u.au,
+                r_max=500 * u.au,
+                tapering_radius=tapering_radius * u.au,
+                gas_mass=10 ** log_gas_mass * u.Msun,
+                inner_radius=inner_radius * u.au,
+                temperature_slope=temperature_slope,
+                midplane_temperature_100au=midplane_temperature_100au * u.K,
+                atmosphere_temperature_100au=atmosphere_temperature_100au * u.K,
+                star_mass=0.52 * u.Msun,
+            ),
+            chemical_params=dict(
+                model="co_hco+_3params.pkl"
+            ),
+            inclination=35.18 * u.deg,  # Zhang+ 2019
+            position_angle=79.19 * u.deg,  # Zhang+ 2019
+            distance=128.22 * u.pc,  # Zhang+ 2019
+            velocity=velocity * u.km / u.s,
+            npix=100,
+            channels=35,
+            line_window_width=7 * u.km / u.s,
+        )
+        model.run_chemistry()
+        model.run_line_radiative_transfer()
+
+        if just_model_creation:
+            shutil.rmtree("Reference", ignore_errors=True)
+            shutil.copytree(temp_dir.name, "Reference")
+            return model
+        chi2 = model.chi2(uvs)
+
+    except Exception as e:
+        logging.info("Failed with %s", params)
+        logging.info(traceback.format_exc())
+        return -np.inf
+    finally:
+        temp_dir.cleanup()
+    return -0.5 * chi2
+
+
+def main():
+    try:
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+    except ImportError:
+        print("Could not get to MPI!")
+    # uvs = {"13CO J=2-1": UVFits('observations/13co.uvfits')}
+    # for line in lines:
+    #     uv = UVFits("noema_c_uv.pkl")
+    #     uv.image_to_visibilities(f'Reference/radmc_gas/{line.name}_image.fits')
+    #     uvs[line.name] = uv
+    parameters = [
+        Parameter(name="R_{c}, au", min=20, max=250, truth=70),
+        Parameter(name="R_{in}, au", min=1, max=10, truth=5),
+        Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-4, max=-2, truth=-2.9),
+        Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
+        Parameter(name="T_{atm, 100}, K", min=20, max=80, truth=40),
+        Parameter(name="T_{mid, 100}, K", min=10, max=40, truth=20),
+        Parameter(name="\delta v, km/s", min=-1, max=1, truth=0),
+    ]
+    fitter = UltraNestFitter(
+        my_likelihood, parameters,
+        progress=True,
+        storage_backend='hdf5',
+        resume=True,
+        run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},
+    )
+    res = fitter.fit()
+    if fitter.sampler.use_mpi:
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        if rank == 0:
+            fitter.save()
+            fitter.table.write("table.ecsv")
+            fig = fitter.corner()
+            fig.savefig("corner.pdf")
+    else:
+        fig = fitter.corner()
+        fig.savefig("corner.pdf")
+
+
+if __name__ == '__main__':
+    main()
