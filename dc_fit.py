@@ -13,15 +13,15 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 import diskchef
-from diskchef.chemistry import NonzeroChemistryWB2014, SciKitChemistry
-from diskchef.dust_opacity import dust_files
-from diskchef.fitting.fitters import UltraNestFitter, Parameter
-from diskchef.lamda.line import Line
-from diskchef.maps import RadMCRTSingleCall, RadMCTherm
+from diskchef import WilliamsBest100au
+from diskchef import NonzeroChemistryWB2014, SciKitChemistry
+from diskchef import UltraNestFitter, Parameter
+from diskchef import Line
+from diskchef import RadMCRTSingleCall, RadMCTherm
+from diskchef import UVFits
 from diskchef.physics import DustPopulation
-from diskchef.physics.williams_best import WilliamsBest100au
+from diskchef.dust_opacity import dust_files
 from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
-from diskchef.uv.uvfits_to_visibilities_ascii import UVFits
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -37,10 +37,39 @@ uvs = {
     "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
     "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
 }
-# IMAGER_EXEC = "bash -lc imager -nw"
-# IMAGER_EXEC = "imager.exe -nw"
+
+lines = [
+    Line(name='CO J=2-1', transition=2, molecule='CO'),
+    Line(name='13CO J=2-1', transition=2, molecule='13CO'),
+    # Line(name='C18O J=2-1', transition=2, molecule='C18O'),
+    Line(name='HCO+ J=3-2', transition=3, molecule='HCO+'),
+    # Line(name='DCO+ J=3-2', transition=3, molecule='DCO+'),
+    # Line(name='H13CO+ J=3-2', transition=3, molecule='H13CO+'),
+]
+
+# IMAGER_EXEC = "bash -lc imager"
+# IMAGER_EXEC = "imager.exe"
 
 plt.rc('savefig', dpi=300)
+
+DEFAULT_TEMP_DIR: Union[str, Path] = None
+"""Default temporaty directory
+
+If None, then looks in os.environ for 'JOB_SHMTMPDIR', then 'JOB_TMPDIR', 'TMPDIR', 'TEMP', 'TMP'
+then tempfile.TemporaryDirectory() finds path for temporary directory itself.
+
+If not None, then use as root for temporary directories
+"""
+
+if DEFAULT_TEMP_DIR is None:
+    for key in 'JOB_SHMTMPDIR', 'JOB_TMPDIR', 'TMPDIR', 'TEMP', 'TMP':
+        if key in os.environ.keys():
+            DEFAULT_TEMP_DIR = Path(os.environ[key]) / 'diskchef'
+            break
+    logging.warning("Use %s as root directory for fitting", DEFAULT_TEMP_DIR)
+else:
+    DEFAULT_TEMP_DIR = Path(DEFAULT_TEMP_DIR)
+
 
 @dataclass
 class ModelFit:
@@ -57,7 +86,7 @@ class ModelFit:
     inclination: u.deg = 0 * u.deg
     position_angle: u.deg = 0 * u.deg
     distance: u.pc = 100 * u.pc
-    velocity: u.km/u.s = 0 * u.km / u.s
+    velocity: u.km / u.s = 0 * u.km / u.s
     nphot_therm: int = 1e7
     npix: int = 100
     channels: int = 31
@@ -82,7 +111,6 @@ class ModelFit:
         self.initialize_chemistry()
 
     def run_chemistry(self):
-        self.disk_physical_model.cosmic_ray_padovani18()
         self.disk_physical_model.ionization()
         self.disk_chemical_model.run_chemistry()
         self.disk_chemical_model.table['CO'][self.disk_chemical_model.table['Gas temperature'] > 200 * u.K] = 1e-10
@@ -107,7 +135,6 @@ class ModelFit:
     ):
         """Run line radiative transfer"""
         folder_rt_gas = self.gas_directory
-        folder_rt_gas.mkdir(parents=True, exist_ok=True)
 
         disk_map = RadMCRTSingleCall(
             chemistry=self.disk_chemical_model, line_list=self.line_list,
@@ -175,7 +202,6 @@ class ModelFit:
         if threads is None:
             threads = self.mctherm_threads
         folder_rt_dust = self.dust_directory
-        folder_rt_dust.mkdir(parents=True, exist_ok=True)
 
         self.mctherm_model = RadMCTherm(
             chemistry=self.disk_chemical_model,
@@ -214,62 +240,82 @@ class ModelFit:
         }
         return sum(self.chi2_dict.values())
 
-def my_likelihood(params, just_model_creation: bool = False) -> float:
+
+def model_in_directory(
+        params: np.array,
+        lines: List[Line],
+        root: Union[Path, str] = 'model',
+) -> ModelFit:
+    """
+    Create model in directory
+
+    Args:
+        params: np.array of parameters for the model
+        lines: list of Line objects to make a model for each line
+        root:  root directory to create files
+
+    Returns:
+        ModelFit instance
+    """
     tapering_radius, inner_radius, log_gas_mass, \
     temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, velocity = params
 
-    lines = [
-        Line(name='CO J=2-1', transition=2, molecule='CO'),
-        Line(name='13CO J=2-1', transition=2, molecule='13CO'),
-        # Line(name='C18O J=2-1', transition=2, molecule='C18O'),
-        Line(name='HCO+ J=3-2', transition=3, molecule='HCO+'),
-        # Line(name='DCO+ J=3-2', transition=3, molecule='DCO+'),
-        # Line(name='H13CO+ J=3-2', transition=3, molecule='H13CO+'),
-    ]
+    model = ModelFit(
+        disk="DN Tau",
+        directory=Path(root),
+        line_list=lines,
+        physics_class=WilliamsBest100au,
+        chemistry_class=SciKitChemistry,
+        physics_params=dict(
+            r_min=1 * u.au,
+            r_max=500 * u.au,
+            tapering_radius=tapering_radius * u.au,
+            gas_mass=10 ** log_gas_mass * u.Msun,
+            inner_radius=inner_radius * u.au,
+            temperature_slope=temperature_slope,
+            midplane_temperature_100au=midplane_temperature_100au * u.K,
+            atmosphere_temperature_100au=atmosphere_temperature_100au * u.K,
+            star_mass=0.52 * u.Msun,
+        ),
+        chemical_params=dict(
+            model="co_hco+_3params.pkl"
+        ),
+        inclination=35.18 * u.deg,  # Zhang+ 2019
+        position_angle=79.19 * u.deg,  # Zhang+ 2019
+        distance=128.22 * u.pc,  # Zhang+ 2019
+        velocity=velocity * u.km / u.s,
+        npix=100,
+        channels=35,
+        line_window_width=7 * u.km / u.s,
+    )
+    model.run_chemistry()
+    model.run_line_radiative_transfer()
+    return model
 
-    directory = Path('fit')
-    directory = Path(os.environ['JOB_SHMTMPDIR']) / "diskchef"
-    logging.warning(directory)
-    directory.mkdir(exist_ok=True, parents=True)
+
+def my_likelihood(params: np.array) -> float:
+    """
+    Creates a model for fitting
+    Args:
+        params: array of parameters for fitting
+
+    Returns:
+        -0.5 * chi2 -- loglikelyhood. On exception, writes exception to INFO-level log and returns -inf
+    """
+
+    root = DEFAULT_TEMP_DIR
+    logging.info("Create files in %s", root)
+    root.mkdir(exist_ok=True, parents=True)
+    chi2 = np.inf
     try:
-        temp_dir = tempfile.TemporaryDirectory(prefix='fit_', dir=directory)
-        model = ModelFit(
-            disk="DN Tau",
-            directory=temp_dir.name,
-            line_list=lines,
-            physics_class=WilliamsBest100au,
-            chemistry_class=SciKitChemistry,
-            physics_params=dict(
-                r_min=1 * u.au,
-                r_max=500 * u.au,
-                tapering_radius=tapering_radius * u.au,
-                gas_mass=10 ** log_gas_mass * u.Msun,
-                inner_radius=inner_radius * u.au,
-                temperature_slope=temperature_slope,
-                midplane_temperature_100au=midplane_temperature_100au * u.K,
-                atmosphere_temperature_100au=atmosphere_temperature_100au * u.K,
-                star_mass=0.52 * u.Msun,
-            ),
-            chemical_params=dict(
-                model="co_hco+_3params.pkl"
-            ),
-            inclination=35.18 * u.deg,  # Zhang+ 2019
-            position_angle=79.19 * u.deg,  # Zhang+ 2019
-            distance=128.22 * u.pc,  # Zhang+ 2019
-            velocity=velocity * u.km / u.s,
-            npix=100,
-            channels=35,
-            line_window_width=7 * u.km / u.s,
-        )
-        model.run_chemistry()
-        model.run_line_radiative_transfer()
-
-        if just_model_creation:
-            shutil.rmtree("Reference", ignore_errors=True)
-            shutil.copytree(temp_dir.name, "Reference")
-            return model
+        temp_dir = tempfile.TemporaryDirectory(prefix='fit_', dir=root)
+        model = model_in_directory(params, lines, root=temp_dir.name)
         chi2 = model.chi2(uvs)
-
+    except MemoryError as e:
+        logging.error("Failed with MemoryError! Probably due to high-resolution models and /dev/shm usage")
+        logging.error(traceback.format_exc())
+        logging.error("If problem persists, set DEFAULT_TEMP_DIR constant in the beginning of dc_fit.py file")
+        return -np.inf
     except Exception as e:
         logging.info("Failed with %s", params)
         logging.info(traceback.format_exc())
@@ -306,7 +352,8 @@ def main():
         progress=True,
         storage_backend='hdf5',
         resume=True,
-        run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},
+        run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},  # <- higher accuracy, slower fit
+        # run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
     )
     res = fitter.fit()
     if fitter.sampler.use_mpi:
