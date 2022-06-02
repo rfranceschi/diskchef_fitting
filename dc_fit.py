@@ -259,7 +259,7 @@ def model_in_directory(
         ModelFit instance
     """
     tapering_radius, inner_radius, log_gas_mass, \
-    temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, velocity = params
+    temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, tapering_gamma, velocity = params
 
     model = ModelFit(
         disk="DN Tau",
@@ -276,6 +276,7 @@ def model_in_directory(
             temperature_slope=temperature_slope,
             midplane_temperature_100au=midplane_temperature_100au * u.K,
             atmosphere_temperature_100au=atmosphere_temperature_100au * u.K,
+            tapering_gamma=tapering_gamma,
             star_mass=0.52 * u.Msun,
         ),
         chemical_params=dict(
@@ -346,15 +347,16 @@ def main():
         Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
         Parameter(name="T_{atm, 100}, K", min=20, max=80, truth=40),
         Parameter(name="T_{mid, 100}, K", min=10, max=40, truth=20),
+        Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
         Parameter(name="\delta v, km/s", min=-1, max=1, truth=0),
-    ] # Gamma!
+    ]
     fitter = UltraNestFitter(
         my_likelihood, parameters,
         progress=True,
         storage_backend='hdf5',
         resume=True,
-        run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},  # <- higher accuracy, slower fit
-        # run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
+        # run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},  # <- higher accuracy, slower fit
+        run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
     )
     res = fitter.fit()
     if fitter.sampler.use_mpi:
