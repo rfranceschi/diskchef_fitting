@@ -19,6 +19,7 @@ from diskchef import UltraNestFitter, Parameter
 from diskchef import Line
 from diskchef import RadMCRTSingleCall, RadMCTherm
 from diskchef import UVFits
+from diskchef.physics.williams_best import WB100auWithSmoothInnerGap
 from diskchef.physics import DustPopulation
 from diskchef.dust_opacity import dust_files
 from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
@@ -34,15 +35,15 @@ for key, value in ENV_VARS.items():
 
 uvs = {
     "13CO J=2-1": UVFits('observations/s-Line-18-13CO_4+D_cut.uvfits', sum=False),
-    "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
-    "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
+    # "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
+    # "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
 }
 
 lines = [
-    Line(name='CO J=2-1', transition=2, molecule='CO'),
+    # Line(name='CO J=2-1', transition=2, molecule='CO'),
     Line(name='13CO J=2-1', transition=2, molecule='13CO'),
     # Line(name='C18O J=2-1', transition=2, molecule='C18O'),
-    Line(name='HCO+ J=3-2', transition=3, molecule='HCO+'),
+    # Line(name='HCO+ J=3-2', transition=3, molecule='HCO+'),
     # Line(name='DCO+ J=3-2', transition=3, molecule='DCO+'),
     # Line(name='H13CO+ J=3-2', transition=3, molecule='H13CO+'),
 ]
@@ -264,7 +265,7 @@ def model_in_directory(
         disk="DN Tau",
         directory=Path(root),
         line_list=lines,
-        physics_class=WilliamsBest100au,
+        physics_class=WB100auWithSmoothInnerGap,
         chemistry_class=SciKitChemistry,
         physics_params=dict(
             r_min=1 * u.au,
@@ -346,7 +347,7 @@ def main():
         Parameter(name="T_{atm, 100}, K", min=20, max=80, truth=40),
         Parameter(name="T_{mid, 100}, K", min=10, max=40, truth=20),
         Parameter(name="\delta v, km/s", min=-1, max=1, truth=0),
-    ]
+    ] # Gamma!
     fitter = UltraNestFitter(
         my_likelihood, parameters,
         progress=True,

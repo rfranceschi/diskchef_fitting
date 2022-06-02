@@ -9,7 +9,7 @@ import numpy as np
 
 import diskchef
 
-diskchef.logging_basic_config()
+diskchef.logging_basic_config(level=logging.INFO)
 from diskchef import SciKitChemistry, Line, WilliamsBest100au, UVFits
 
 from dc_fit import ModelFit, uvs, model_in_directory, lines
@@ -34,8 +34,10 @@ def model_chi2(
     params = (tapering_radius, inner_radius, log_gas_mass, temperature_slope,
               atmosphere_temperature_100au, midplane_temperature_100au, velocity)
     root = Path(
-        f'fit/{tapering_radius}_{inner_radius}_{log_gas_mass}_{temperature_slope}'
-        f'_{atmosphere_temperature_100au}_{midplane_temperature_100au}_{inclination_deg}_{pa_deg}_{velocity}')
+        f'fit/{tapering_radius:.1f}_{inner_radius:.1f}_{log_gas_mass:.2f}_{temperature_slope:.2f}'
+        f'_{atmosphere_temperature_100au:.1f}_{midplane_temperature_100au:.1f}_{inclination_deg:.2f}_{pa_deg:.1f}_{velocity:.2f}'
+        f'_{dra:.2f}_{ddec:.2f}'
+    )
 
     model = model_in_directory(params=params, lines=lines, root=root)
     model.plot(filename=root / "model.png", species1="CO", species2="HCO+")
@@ -68,13 +70,14 @@ def model_chi2(
 
 
 def model_chi2_one_param(x):
+    # [50, 10, -2, 0.55, 20, 30, 0.4]
     return model_chi2(
-        tapering_radius=140,
-        inner_radius=x,
-        log_gas_mass=-2.8,
-        temperature_slope=0.5,
-        atmosphere_temperature_100au=22,
-        midplane_temperature_100au=22,
+        tapering_radius=116,
+        inner_radius=46,
+        log_gas_mass=x,
+        temperature_slope=0.7,
+        atmosphere_temperature_100au=38,
+        midplane_temperature_100au=20,
         inclination_deg=35.18,
         pa_deg=79.19,
         dra=0,
@@ -84,13 +87,13 @@ def model_chi2_one_param(x):
 
 
 if __name__ == '__main__':
-    param = np.linspace(100, 300, 4)
-    param = [8, 9, 10, 11, 12, 13, 14, 15, 16]
+    param = np.arange(-0.04, 0.04, 0.01)
+    param = np.arange(-3.5, -2.8, 0.1)
     with multiprocessing.Pool(processes=8) as p:
         chi2 = p.map(model_chi2_one_param, param)
     output = Path('plots')
     output.mkdir(parents=True, exist_ok=True)
     chi2 = np.array(chi2)
     plt.scatter(param, chi2)
-    plt.savefig(output / 'chi_innerhole.png')
+    plt.savefig(output / 'chi_mass.png')
     # model, _ = model_setup()
