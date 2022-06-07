@@ -258,8 +258,20 @@ def model_in_directory(
     Returns:
         ModelFit instance
     """
-    tapering_radius, inner_radius, log_gas_mass, \
-    temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, tapering_gamma, velocity = params
+    (
+        tapering_radius, 
+        inner_radius, 
+        log_gas_mass,
+        #temperature_slope, 
+        atmosphere_temperature_100au, 
+        midplane_temperature_100au, 
+        #tapering_gamma, 
+        #velocity
+    ) = params
+
+    temperature_slope = 0.55
+    tapering_gamma = 0.75
+    velocity = 0.4
 
     model = ModelFit(
         disk="DN Tau",
@@ -324,7 +336,7 @@ def my_likelihood(params: np.array) -> float:
         return -np.inf
     finally:
         temp_dir.cleanup()
-    return -0.5 * chi2
+    return -0.5 * chi2 * 1e-6
 
 
 def main():
@@ -342,21 +354,22 @@ def main():
     #     uvs[line.name] = uv
     parameters = [
         Parameter(name="R_{c}, au", min=20, max=250, truth=70),
-        Parameter(name="R_{in}, au", min=1, max=10, truth=5),
-        Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-4, max=-2, truth=-2.9),
-        Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
-        Parameter(name="T_{atm, 100}, K", min=20, max=80, truth=40),
-        Parameter(name="T_{mid, 100}, K", min=10, max=40, truth=20),
-        Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
-        Parameter(name="\delta v, km/s", min=-1, max=1, truth=0),
+        Parameter(name="R_{in}, au", min=1, max=40, truth=5),
+        Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-6, max=-1, truth=-2.9),
+        # Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
+        Parameter(name="T_{atm, 100}, K", min=10, max=200, truth=40),
+        Parameter(name="T_{mid, 100}, K", min=3, max=100, truth=20),
+        #Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
+        #Parameter(name="\delta v, km/s", min=0, max=1, truth=0.4),
     ]
     fitter = UltraNestFitter(
         my_likelihood, parameters,
         progress=True,
         storage_backend='hdf5',
         resume=True,
+        run_kwargs={'dlogz': 0.1, 'dKL': 0.1},  # <- very high accuracy
         # run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},  # <- higher accuracy, slower fit
-        run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
+        # run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
     )
     res = fitter.fit()
     if fitter.sampler.use_mpi:
