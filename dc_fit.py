@@ -51,6 +51,7 @@ lines = [
 # IMAGER_EXEC = "bash -lc imager"
 # IMAGER_EXEC = "imager.exe"
 
+chi2_factor = 1
 plt.rc('savefig', dpi=300)
 
 DEFAULT_TEMP_DIR: Union[str, Path] = None
@@ -336,7 +337,7 @@ def my_likelihood(params: np.array) -> float:
         return -np.inf
     finally:
         temp_dir.cleanup()
-    return -0.5 * chi2 * 1e-6
+    return -0.5 * chi2 * chi2_factor
 
 
 def main():
