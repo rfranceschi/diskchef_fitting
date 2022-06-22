@@ -24,7 +24,7 @@ from diskchef.physics import DustPopulation
 from diskchef.dust_opacity import dust_files
 from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
 
-logging.basicConfig(level=logging.WARNING)
+diskchef.logging_basic_config(level=logging.WARNING)
 
 ENV_VARS = dict(
     PYTHONUNBUFFERED=1, MKL_NUM_THREADS=1, NUMEXPR_NUM_THREADS=1, OMP_NUM_THREADS=1
@@ -51,8 +51,12 @@ lines = [
 # IMAGER_EXEC = "bash -lc imager"
 # IMAGER_EXEC = "imager.exe"
 
+chemical_model = SciKitChemistry.load_scikit_model("co_hco+_3params.pkl")
+# chemical_model = SciKitChemistry.load_scikit_model("co_hco+_dco+_3params_xray_lum_explored.pkl")
+
 chi2_factor = 1
 plt.rc('savefig', dpi=300)
+np.seterr('ignore')
 
 DEFAULT_TEMP_DIR: Union[str, Path] = None
 """Default temporaty directory
@@ -260,13 +264,13 @@ def model_in_directory(
         ModelFit instance
     """
     (
-        tapering_radius, 
-        inner_radius, 
+        tapering_radius,
+        inner_radius,
         log_gas_mass,
-        #temperature_slope, 
-        atmosphere_temperature_100au, 
-        midplane_temperature_100au, 
-        #tapering_gamma, 
+        #temperature_slope,
+        atmosphere_temperature_100au,
+        midplane_temperature_100au,
+        #tapering_gamma,
         #velocity
     ) = params
 
@@ -293,7 +297,7 @@ def model_in_directory(
             star_mass=0.52 * u.Msun,
         ),
         chemical_params=dict(
-            model="co_hco+_3params.pkl"
+            model=chemical_model
         ),
         inclination=35.18 * u.deg,  # Zhang+ 2019
         position_angle=79.19 * u.deg,  # Zhang+ 2019

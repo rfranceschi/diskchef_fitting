@@ -17,7 +17,7 @@ from dc_fit import ModelFit, model_in_directory
 
 def main():
     # tapering_radius, inner_radius, log_gas_mass, temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, velocity
-    params = [150, 5, -2, 0.55, 40, 20, 0.4]
+    params = [116, 46, -3.12, 0.73, 38, 20, 0.4]
 
     root = Path("Reference")
 
