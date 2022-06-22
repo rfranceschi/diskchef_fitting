@@ -1,5 +1,7 @@
 import logging
 import shutil
+import signal
+import sys
 import tempfile
 import traceback
 from dataclasses import dataclass, field
@@ -25,6 +27,17 @@ from diskchef.dust_opacity import dust_files
 from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
 
 diskchef.logging_basic_config(level=logging.WARNING)
+
+
+def sigterm_handler(_signo, _stack_frame):
+    """
+    Raises SystemExit(1)
+    """
+    sys.exit(1)
+
+
+"""Catches SIGTERM calling sigterm_handler, making it capturable by try-except-finally"""
+signal.signal(signal.SIGTERM, sigterm_handler)
 
 ENV_VARS = dict(
     PYTHONUNBUFFERED=1, MKL_NUM_THREADS=1, NUMEXPR_NUM_THREADS=1, OMP_NUM_THREADS=1
@@ -267,11 +280,11 @@ def model_in_directory(
         tapering_radius,
         inner_radius,
         log_gas_mass,
-        #temperature_slope,
+        # temperature_slope,
         atmosphere_temperature_100au,
         midplane_temperature_100au,
-        #tapering_gamma,
-        #velocity
+        # tapering_gamma,
+        # velocity
     ) = params
 
     temperature_slope = 0.55
@@ -364,8 +377,8 @@ def main():
         # Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
         Parameter(name="T_{atm, 100}, K", min=10, max=200, truth=40),
         Parameter(name="T_{mid, 100}, K", min=3, max=100, truth=20),
-        #Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
-        #Parameter(name="\delta v, km/s", min=0, max=1, truth=0.4),
+        # Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
+        # Parameter(name="\delta v, km/s", min=0, max=1, truth=0.4),
     ]
     fitter = UltraNestFitter(
         my_likelihood, parameters,
@@ -374,20 +387,23 @@ def main():
         resume=True,
         # run_kwargs={'dlogz': 0.1, 'dKL': 0.1},  # <- very high accuracy
         # run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},  # <- higher accuracy, slower fit
-        run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
+        run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100}, # <- lower accuracy, fast fit
     )
-    res = fitter.fit()
-    if fitter.sampler.use_mpi:
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        if rank == 0:
-            fitter.save()
-            fitter.table.write("table.ecsv")
+    try:
+        res = fitter.fit()
+    finally:
+        logging.critical("Saving final results!")
+        if fitter.sampler.use_mpi:
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+            if rank == 0:
+                fitter.save()
+                fitter.table.write("table.ecsv")
+                fig = fitter.corner()
+                fig.savefig("corner.pdf")
+        else:
             fig = fitter.corner()
             fig.savefig("corner.pdf")
-    else:
-        fig = fitter.corner()
-        fig.savefig("corner.pdf")
 
 
 if __name__ == '__main__':
