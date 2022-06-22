@@ -10,7 +10,6 @@ from typing import Union, List, Type, Dict
 import os
 
 import astropy.units as u
-import diskchef
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -389,21 +388,16 @@ def main():
         resume=True,
         # run_kwargs={'dlogz': 0.1, 'dKL': 0.1},  # <- very high accuracy
         # run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},  # <- higher accuracy, slower fit
-        run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100}, # <- lower accuracy, fast fit
+        run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},
+        # <- lower accuracy, fast fit
     )
     try:
         res = fitter.fit()
     finally:
-        logging.critical("Saving final results!")
-        if fitter.sampler.use_mpi:
-            comm = MPI.COMM_WORLD
-            rank = comm.Get_rank()
-            if rank == 0:
-                fitter.save()
-                fitter.table.write("table.ecsv")
-                fig = fitter.corner()
-                fig.savefig("corner.pdf")
-        else:
+        if (not fitter.sampler.use_mpi) or (MPI.COMM_WORLD.Get_rank() == 0):
+            logging.critical("Saving final results!")
+            fitter.save()
+            fitter.table.write("table.ecsv")
             fig = fitter.corner()
             fig.savefig("corner.pdf")
 
