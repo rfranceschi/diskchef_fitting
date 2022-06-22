@@ -372,9 +372,9 @@ def main():
         progress=True,
         storage_backend='hdf5',
         resume=True,
-        run_kwargs={'dlogz': 0.1, 'dKL': 0.1},  # <- very high accuracy
+        # run_kwargs={'dlogz': 0.1, 'dKL': 0.1},  # <- very high accuracy
         # run_kwargs={'dlogz': 0.5, 'dKL': 0.5, 'min_num_live_points': 100},  # <- higher accuracy, slower fit
-        # run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
+        run_kwargs={'dlogz': 1, 'dKL': 1, 'frac_remain': 0.5, 'Lepsilon': 0.01, 'min_num_live_points': 100},  # <- lower accuracy, fast fit
     )
     res = fitter.fit()
     if fitter.sampler.use_mpi:
