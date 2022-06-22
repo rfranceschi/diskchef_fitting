@@ -33,11 +33,13 @@ def sigterm_handler(_signo, _stack_frame):
     """
     Raises SystemExit(1)
     """
+    logging.critical("SIGTERM or SIGINT received, trying to wrap the results...")
     sys.exit(1)
 
 
-"""Catches SIGTERM calling sigterm_handler, making it capturable by try-except-finally"""
+"""Catches SIGTERM and SIGINT calling sigterm_handler, making it capturable by try-except-finally"""
 signal.signal(signal.SIGTERM, sigterm_handler)
+signal.signal(signal.SIGINT, sigterm_handler)
 
 ENV_VARS = dict(
     PYTHONUNBUFFERED=1, MKL_NUM_THREADS=1, NUMEXPR_NUM_THREADS=1, OMP_NUM_THREADS=1
