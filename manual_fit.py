@@ -72,12 +72,12 @@ def model_chi2(
 def model_chi2_one_param(x):
     # [50, 10, -2, 0.55, 20, 30, 0.4]
     return model_chi2(
-        tapering_radius=116,
-        inner_radius=46,
-        log_gas_mass=x,
-        temperature_slope=0.7,
-        atmosphere_temperature_100au=38,
-        midplane_temperature_100au=20,
+        tapering_radius=81,
+        inner_radius=16,
+        log_gas_mass=-2.8,
+        temperature_slope=0.75,
+        atmosphere_temperature_100au=35,
+        midplane_temperature_100au=30,
         inclination_deg=35.18,
         pa_deg=79.19,
         dra=0,
@@ -87,13 +87,14 @@ def model_chi2_one_param(x):
 
 
 if __name__ == '__main__':
-    param = np.arange(-0.04, 0.04, 0.01)
-    param = np.arange(-3.5, -2.8, 0.1)
+    # param = np.arange(-0.04, 0.04, 0.01)
+    # param = np.arange(-3.5, -2.8, 0.1)
+    param = np.linspace(1, 50, 8)
     with multiprocessing.Pool(processes=8) as p:
         chi2 = p.map(model_chi2_one_param, param)
     output = Path('plots')
     output.mkdir(parents=True, exist_ok=True)
     chi2 = np.array(chi2)
     plt.scatter(param, chi2)
-    plt.savefig(output / 'chi_mass.png')
+    plt.savefig(output / 'chi_midplane_temperature_100au.png')
     # model, _ = model_setup()

@@ -18,7 +18,7 @@ from diskchef import WilliamsBest100au
 from diskchef import NonzeroChemistryWB2014, SciKitChemistry
 from diskchef import UltraNestFitter, Parameter
 from diskchef import Line
-from diskchef import RadMCRTSingleCall, RadMCTherm
+from diskchef import RadMCRTLines, RadMCTherm
 from diskchef import UVFits
 from diskchef.physics.williams_best import WB100auWithSmoothInnerGap
 from diskchef.physics import DustPopulation
@@ -116,12 +116,13 @@ class ModelFit:
     line_window_width: u.km / u.s = 15 * u.km / u.s
     radmc_lines_run_kwargs: dict = field(default_factory=dict)
     mctherm_threads = 1
+    camera_refine_criterion: float = 0.25
 
     def __post_init__(self):
         self.dust = None
         self.disk_physical_model: diskchef.physics.PhysicsModel = None
         self.disk_chemical_model: diskchef.chemistry.ChemistryModel = None
-        self.radmc_model: RadMCRTSingleCall = None
+        self.radmc_model: RadMCRTLines = None
         self.chi2_dict: dict = None
         self._check_radius_temperature()
         self._update_defaults()
@@ -156,10 +157,12 @@ class ModelFit:
         """Run line radiative transfer"""
         folder_rt_gas = self.gas_directory
 
-        disk_map = RadMCRTSingleCall(
+        disk_map = RadMCRTLines(
             chemistry=self.disk_chemical_model, line_list=self.line_list,
             radii_bins=self.radial_bins_rt, theta_bins=self.vertical_bins_rt,
-            folder=folder_rt_gas, velocity=self.velocity, **kwargs
+            folder=folder_rt_gas, velocity=self.velocity,
+            camera_refine_criterion=self.camera_refine_criterion,
+            **kwargs,
         )
 
         disk_map.create_files(channels_per_line=self.channels, window_width=self.line_window_width)
@@ -265,6 +268,7 @@ def model_in_directory(
         params: np.array,
         lines: List[Line],
         root: Union[Path, str] = 'model',
+        **kwargs,
 ) -> ModelFit:
     """
     Create model in directory
@@ -281,15 +285,15 @@ def model_in_directory(
         tapering_radius,
         inner_radius,
         log_gas_mass,
-        # temperature_slope,
+        temperature_slope,
         atmosphere_temperature_100au,
         midplane_temperature_100au,
-        # tapering_gamma,
+        tapering_gamma,
         # velocity
     ) = params
 
-    temperature_slope = 0.55
-    tapering_gamma = 0.75
+    # temperature_slope = 0.55
+    # tapering_gamma = 0.75
     velocity = 0.4
 
     model = ModelFit(
@@ -320,6 +324,7 @@ def model_in_directory(
         npix=100,
         channels=35,
         line_window_width=7 * u.km / u.s,
+        **kwargs,
     )
     model.run_chemistry()
     model.run_line_radiative_transfer()
@@ -375,10 +380,10 @@ def main():
         Parameter(name="R_{c}, au", min=20, max=250, truth=70),
         Parameter(name="R_{in}, au", min=1, max=40, truth=5),
         Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-6, max=-1, truth=-2.9),
-        # Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
+        Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
         Parameter(name="T_{atm, 100}, K", min=10, max=200, truth=40),
         Parameter(name="T_{mid, 100}, K", min=3, max=100, truth=20),
-        # Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
+        Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
         # Parameter(name="\delta v, km/s", min=0, max=1, truth=0.4),
     ]
     fitter = UltraNestFitter(
