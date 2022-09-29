@@ -116,7 +116,7 @@ class ModelFit:
     line_window_width: u.km / u.s = 15 * u.km / u.s
     radmc_lines_run_kwargs: dict = field(default_factory=dict)
     mctherm_threads = 1
-    camera_refine_criterion: float = 0.25
+    camera_refine_criterion: float = 1
 
     def __post_init__(self):
         self.dust = None
@@ -283,18 +283,20 @@ def model_in_directory(
     """
     (
         tapering_radius,
-        inner_radius,
+        # inner_radius,
         log_gas_mass,
-        temperature_slope,
+        # temperature_slope,
         atmosphere_temperature_100au,
         midplane_temperature_100au,
-        tapering_gamma,
+        # tapering_gamma,
         # velocity
     ) = params
 
-    # temperature_slope = 0.55
+    temperature_slope = 0.55
     # tapering_gamma = 0.75
-    velocity = 0.4
+    inner_radius = 16
+    velocity = 0.41
+    tapering_gamma = 1
 
     model = ModelFit(
         disk="DN Tau",
@@ -313,6 +315,8 @@ def model_in_directory(
             atmosphere_temperature_100au=atmosphere_temperature_100au * u.K,
             tapering_gamma=tapering_gamma,
             star_mass=0.52 * u.Msun,
+            radial_bins=75,
+            vertical_bins=75,
         ),
         chemical_params=dict(
             model=chemical_model
@@ -321,7 +325,7 @@ def model_in_directory(
         position_angle=79.19 * u.deg,  # Zhang+ 2019
         distance=128.22 * u.pc,  # Zhang+ 2019
         velocity=velocity * u.km / u.s,
-        npix=100,
+        npix=200,
         channels=35,
         line_window_width=7 * u.km / u.s,
         **kwargs,
@@ -377,13 +381,13 @@ def main():
     #     uv.image_to_visibilities(f'Reference/radmc_gas/{line.name}_image.fits')
     #     uvs[line.name] = uv
     parameters = [
-        Parameter(name="R_{c}, au", min=20, max=250, truth=70),
-        Parameter(name="R_{in}, au", min=1, max=40, truth=5),
-        Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-6, max=-1, truth=-2.9),
-        Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
-        Parameter(name="T_{atm, 100}, K", min=10, max=200, truth=40),
-        Parameter(name="T_{mid, 100}, K", min=3, max=100, truth=20),
-        Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
+        Parameter(name="R_{c}, au", min=50, max=150, truth=70),
+        # Parameter(name="R_{in}, au", min=1, max=40, truth=5),
+        Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-3.2, max=-2.5, truth=-2.9),
+        # Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
+        Parameter(name="T_{atm, 100}, K", min=10, max=40, truth=40),
+        Parameter(name="T_{mid, 100}, K", min=9, max=15, truth=20),
+        # Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
         # Parameter(name="\delta v, km/s", min=0, max=1, truth=0.4),
     ]
     fitter = UltraNestFitter(

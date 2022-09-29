@@ -73,14 +73,14 @@ def model_chi2_one_param(x):
     # [50, 10, -2, 0.55, 20, 30, 0.4]
     return model_chi2(
         tapering_radius=81,
-        inner_radius=16,
-        log_gas_mass=-2.8,
-        temperature_slope=0.75,
+        inner_radius=16,  # remove
+        log_gas_mass=-2.8,  # narrow  constraints
+        temperature_slope=0.75,  # maybe fix
         atmosphere_temperature_100au=35,
-        midplane_temperature_100au=30,
+        midplane_temperature_100au=30,  # should also be very narrow [9, 15]
         inclination_deg=35.18,
         pa_deg=79.19,
-        dra=0,
+        dra=0,  # check these again
         ddec=0,
         velocity=0.4
     )
