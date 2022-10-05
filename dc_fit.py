@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Union, List, Type, Dict
 import os
+import getpass
 
 import astropy.units as u
 import numpy as np
@@ -26,6 +27,10 @@ from diskchef.dust_opacity import dust_files
 from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
 
 diskchef.logging_basic_config(level=logging.WARNING)
+
+radmc_exec = None
+if getpass.getuser() == 'franceschi':
+    radmc_exec = Path('/Users/franceschi/bin/radmc3d')
 
 
 def sigterm_handler(_signo, _stack_frame):
@@ -162,6 +167,7 @@ class ModelFit:
             radii_bins=self.radial_bins_rt, theta_bins=self.vertical_bins_rt,
             folder=folder_rt_gas, velocity=self.velocity,
             camera_refine_criterion=self.camera_refine_criterion,
+            executable=radmc_exec,
             **kwargs,
         )
 
