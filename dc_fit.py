@@ -53,15 +53,18 @@ for key, value in ENV_VARS.items():
     os.environ[key] = str(value)
 
 uvs = {
-    "13CO J=2-1": UVFits('observations/s-Line-18-13CO_4+D_cut.uvfits', sum=False),
+    "CO J=2-1": UVFits('observations_test/CO_cut.uvfits', sum=False),
+    "13CO J=2-1": UVFits('observations_test/13CO_cut.uvfits', sum=False),
+    "C18O J=2-1": UVFits('observations_test/C18O_cut.uvfits', sum=False),
+    # "HCO+ J=3-2": UVFits('observations_test/HCO+_cut.uvfits', sum=False),
     # "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
     # "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
 }
 
 lines = [
-    # Line(name='CO J=2-1', transition=2, molecule='CO'),
+    Line(name='CO J=2-1', transition=2, molecule='CO'),
     Line(name='13CO J=2-1', transition=2, molecule='13CO'),
-    # Line(name='C18O J=2-1', transition=2, molecule='C18O'),
+    Line(name='C18O J=2-1', transition=2, molecule='C18O'),
     # Line(name='HCO+ J=3-2', transition=3, molecule='HCO+'),
     # Line(name='DCO+ J=3-2', transition=3, molecule='DCO+'),
     # Line(name='H13CO+ J=3-2', transition=3, molecule='H13CO+'),
@@ -289,18 +292,14 @@ def model_in_directory(
     """
     (
         tapering_radius,
-        # inner_radius,
         log_gas_mass,
-        # temperature_slope,
         atmosphere_temperature_100au,
         midplane_temperature_100au,
-        # tapering_gamma,
-        # velocity
     ) = params
 
     temperature_slope = 0.55
+    inner_radius = 11
     # tapering_gamma = 0.75
-    inner_radius = 16
     velocity = 0.41
     tapering_gamma = 1
 
