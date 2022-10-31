@@ -386,12 +386,12 @@ def main():
     #     uv.image_to_visibilities(f'Reference/radmc_gas/{line.name}_image.fits')
     #     uvs[line.name] = uv
     parameters = [
-        Parameter(name="R_{c}, au", min=50, max=150, truth=70),
+        Parameter(name="R_{c}, au", min=20, max=100, truth=50),
         # Parameter(name="R_{in}, au", min=1, max=40, truth=5),
-        Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-3.2, max=-2.5, truth=-2.9),
+        Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-3.2, max=-2.0, truth=-2.3),
         # Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
-        Parameter(name="T_{atm, 100}, K", min=10, max=40, truth=40),
-        Parameter(name="T_{mid, 100}, K", min=9, max=15, truth=20),
+        Parameter(name="T_{atm, 100}, K", min=20, max=35, truth=30),
+        Parameter(name="T_{mid, 100}, K", min=10, max=25, truth=19),
         # Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
         # Parameter(name="\delta v, km/s", min=0, max=1, truth=0.4),
     ]
