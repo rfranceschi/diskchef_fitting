@@ -28,7 +28,6 @@ from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
 
 diskchef.logging_basic_config(level=logging.WARNING)
 
-radmc_exec = None
 if getpass.getuser() == 'franceschi':
     radmc_exec = Path('/Users/franceschi/bin/radmc3d')
 
