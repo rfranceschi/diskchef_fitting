@@ -9,6 +9,8 @@ alpha_T fixed to  0.55
 midplane_T constrain should be very narrow [9, 15]
 mass constrain should be narrow
 
+Imager commands to generate fits files from uvtables
+
 READ UV file
 UV_MAP
 CLEAN

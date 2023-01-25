@@ -28,8 +28,9 @@ from diskchef.physics.yorke_bodenheimer import YorkeBodenheimer2008
 
 diskchef.logging_basic_config(level=logging.WARNING)
 
-if getpass.getuser() == 'franceschi':
-    radmc_exec = Path('/Users/franceschi/bin/radmc3d')
+radmc_exec = Path(shutil.which('radmc3d'))
+if not radmc_exec.is_file():
+    raise FileNotFoundError('RADMC3D executable not found')
 
 
 def sigterm_handler(_signo, _stack_frame):
@@ -52,9 +53,9 @@ for key, value in ENV_VARS.items():
     os.environ[key] = str(value)
 
 uvs = {
-    "CO J=2-1": UVFits('observations_test/CO_cut.uvfits', sum=False),
-    "13CO J=2-1": UVFits('observations_test/13CO_cut.uvfits', sum=False),
-    "C18O J=2-1": UVFits('observations_test/C18O_cut.uvfits', sum=False),
+    "CO J=2-1": UVFits('observations_test/DN Tau/CO_cut.uvfits', sum=False),
+    "13CO J=2-1": UVFits('observations_test/DN Tau/13CO_cut.uvfits', sum=False),
+    "C18O J=2-1": UVFits('observations_test/DN Tau/C18O_cut.uvfits', sum=False),
     # "HCO+ J=3-2": UVFits('observations_test/HCO+_cut.uvfits', sum=False),
     # "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
     # "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
@@ -321,6 +322,7 @@ def model_in_directory(
             star_mass=0.52 * u.Msun,
             radial_bins=75,
             vertical_bins=75,
+            zq=4,
         ),
         chemical_params=dict(
             model=chemical_model

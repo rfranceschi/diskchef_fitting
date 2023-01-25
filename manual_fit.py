@@ -83,12 +83,15 @@ def model_chi2_one_param(x):
 
 
 if __name__ == '__main__':
-    param = np.linspace(25, 35, 7)
+    param = [30]
+    PLOT = True
+    # param = np.linspace(25, 35, 7)
     with multiprocessing.Pool(processes=8) as p:
         chi2_res = p.map(model_chi2_one_param, param)
     output = Path('plots')
     output.mkdir(parents=True, exist_ok=True)
-    chi2_res = np.array(chi2_res)
-    plt.scatter(param, chi2_res)
-    plt.savefig(output / 'C18O_chi_tatm.png')
+    if PLOT:
+        chi2_res = np.array(chi2_res)
+        plt.scatter(param, chi2_res)
+        plt.savefig(output / 'chi2.png')
     # model, _ = model_setup()
