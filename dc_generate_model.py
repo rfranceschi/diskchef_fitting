@@ -19,9 +19,10 @@ def main():
     # tapering_radius, inner_radius, log_gas_mass, temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, velocity
     # params = [116, 46, -3.12, 0.73, 38, 20, 0.4]
     # params = [81, 16, -2.8, 0.75, 35, 30, 0.4]
-    params = [60, -2.8, 28, 22]
+    params = [66, -2.74, 25, 11, 0.6]
 
-    root = Path("Reference")
+    model_name = 'DNTau' + ''.join([f'_{str(_param)}' for _param in params])
+    root = Path('Reference') / model_name
 
     lines = [
         Line(name='CO J=2-1', transition=2, molecule='CO'),
@@ -33,7 +34,7 @@ def main():
     ]
 
     model = model_in_directory(params, lines=lines, root=root)
-    model.plot(filename=root / "model.png", species1="CO", species2="HCO+")
+    model.plot(filename=root / "model.png", species1="13CO", species2="CO")
 
 
 if __name__ == "__main__":

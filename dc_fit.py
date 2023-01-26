@@ -53,9 +53,9 @@ for key, value in ENV_VARS.items():
     os.environ[key] = str(value)
 
 uvs = {
-    "CO J=2-1": UVFits('observations_test/DN Tau/CO_cut.uvfits', sum=False),
-    "13CO J=2-1": UVFits('observations_test/DN Tau/13CO_cut.uvfits', sum=False),
-    "C18O J=2-1": UVFits('observations_test/DN Tau/C18O_cut.uvfits', sum=False),
+    "CO J=2-1": UVFits('observations_test/DNTau/CO_cut.uvfits', sum=False),
+    "13CO J=2-1": UVFits('observations_test/DNTau/13CO_cut.uvfits', sum=False),
+    "C18O J=2-1": UVFits('observations_test/DNTau/C18O_cut.uvfits', sum=False),
     # "HCO+ J=3-2": UVFits('observations_test/HCO+_cut.uvfits', sum=False),
     # "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
     # "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
@@ -295,9 +295,10 @@ def model_in_directory(
         log_gas_mass,
         atmosphere_temperature_100au,
         midplane_temperature_100au,
+        temperature_slope,
     ) = params
 
-    temperature_slope = 0.55
+    # temperature_slope = 0.55
     inner_radius = 11
     # tapering_gamma = 0.75
     velocity = 0.41
