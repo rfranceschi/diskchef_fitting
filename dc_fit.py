@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Union, List, Type, Dict
 import os
-import getpass
 
+import astropy.constants as const
 import astropy.units as u
 import numpy as np
 from matplotlib import pyplot as plt
@@ -308,7 +308,7 @@ def model_in_directory(
         disk="DN Tau",
         directory=Path(root),
         line_list=lines,
-        physics_class=WB100auWithSmoothInnerGap,
+        physics_class=WB100auWithSmoothInnerGapTmidTazzari,
         chemistry_class=SciKitChemistry,
         physics_params=dict(
             r_min=1 * u.au,
@@ -340,6 +340,50 @@ def model_in_directory(
     model.run_chemistry()
     model.run_line_radiative_transfer()
     return model
+
+
+@dataclass
+class WB100auWithSmoothInnerGapTmidTazzari(WB100auWithSmoothInnerGap):
+
+    def gas_temperature(self, r: u.au, z: u.au) -> u.K:
+        """Function that returns gas temperature
+
+        at given r,z using the parametrization from
+        Williams & Best 2014, Eq. 5-7
+        https://iopscience.iop.org/article/10.1088/0004-637X/788/1/59/pdf
+
+        Args:
+            r: u.au -- radial distance
+            z: u.au -- height
+        Return:
+            temperature: u.K
+        Raises:
+            astropy.unit.UnitConversion
+
+            Error if units are not consistent
+        """
+        temp_midplane = self.midplane_temperature_1au * (r.to(u.au) / u.au) ** (-self.temperature_slope)
+        temp_midplane = (temp_midplane**4 + 10**4)**(1/4)
+        temp_atmosphere = self.atmosphere_temperature_1au * (r.to(u.au) / u.au) ** (-self.temperature_slope)
+        pressure_scalehight = (
+                (
+                        const.R * temp_midplane * r ** 3 /
+                        (const.G * self.star_mass * self.molar_mass)
+                ) ** 0.5
+        ).to(u.au)
+        temperature = u.Quantity(np.zeros_like(z)).value << u.K
+        indices_atmosphere = z >= self.zq * pressure_scalehight
+        indices_midplane = ~ indices_atmosphere
+        temperature[indices_atmosphere] = temp_atmosphere[indices_atmosphere]
+        temperature[indices_midplane] = (
+                temp_midplane[indices_midplane]
+                + (temp_atmosphere[indices_midplane] - temp_midplane[indices_midplane])
+                * np.sin((np.pi * z[indices_midplane] / (2 * self.zq * pressure_scalehight[indices_midplane]))
+                         .to(u.rad, equivalencies=u.dimensionless_angles())
+                         ) ** 4
+        )
+
+        return temperature
 
 
 def my_likelihood(params: np.array) -> float:
