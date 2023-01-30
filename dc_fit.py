@@ -363,7 +363,7 @@ class WB100auWithSmoothInnerGapTmidTazzari(WB100auWithSmoothInnerGap):
             Error if units are not consistent
         """
         temp_midplane = self.midplane_temperature_1au * (r.to(u.au) / u.au) ** (-self.temperature_slope)
-        temp_midplane = (temp_midplane**4 + 10**4)**(1/4)
+        temp_midplane = (temp_midplane**4 + (10 * u.K)**4)**(1/4)
         temp_atmosphere = self.atmosphere_temperature_1au * (r.to(u.au) / u.au) ** (-self.temperature_slope)
         pressure_scalehight = (
                 (
