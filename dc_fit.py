@@ -435,9 +435,9 @@ def main():
         Parameter(name="R_{c}, au", min=20, max=100, truth=50),
         # Parameter(name="R_{in}, au", min=1, max=40, truth=5),
         Parameter(name="log_{10}(M_{gas}/M_\odot)", min=-3.2, max=-2.0, truth=-2.3),
-        # Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
         Parameter(name="T_{atm, 100}, K", min=20, max=35, truth=30),
         Parameter(name="T_{mid, 100}, K", min=10, max=25, truth=19),
+        Parameter(name=r"\alpha_{T}", min=0.5, max=0.6, truth=0.55),
         # Parameter(name="\gamma", min=0.5, max=1, truth=0.75),
         # Parameter(name="\delta v, km/s", min=0, max=1, truth=0.4),
     ]

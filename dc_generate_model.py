@@ -19,7 +19,7 @@ def main():
     # tapering_radius, inner_radius, log_gas_mass, temperature_slope, atmosphere_temperature_100au, midplane_temperature_100au, velocity
     # params = [116, 46, -3.12, 0.73, 38, 20, 0.4]
     # params = [81, 16, -2.8, 0.75, 35, 30, 0.4]
-    params = [66, -2.74, 25, 11, 0.6]
+    params = [45, -2.75, 28, 8, 0.8]
 
     model_name = 'DNTau' + ''.join([f'_{str(_param)}' for _param in params])
     root = Path('Reference') / model_name
