@@ -1,7 +1,11 @@
-/fit/
-/Reference/
+/fit
+/Reference
 /testing.ipynb
-/plots/
+/plots
 *.imager
-/observations/
-/models/
+*.pdf
+/observations
+/observations_new
+/models
+/C18O_cobra
+/models

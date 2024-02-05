@@ -52,11 +52,12 @@ ENV_VARS = dict(
 for key, value in ENV_VARS.items():
     os.environ[key] = str(value)
 
+disk = "DNTau"
 uvs = {
-    "CO J=2-1": UVFits('observations_test/DNTau/CO_cut.uvfits', sum=False),
-    "13CO J=2-1": UVFits('observations_test/DNTau/13CO_cut.uvfits', sum=False),
-    "C18O J=2-1": UVFits('observations_test/DNTau/C18O_cut.uvfits', sum=False),
-    # "HCO+ J=3-2": UVFits('observations_test/HCO+_cut.uvfits', sum=False),
+    "CO J=2-1": UVFits(f'observations_new/{disk}/CO_cut.uvfits', sum=False),
+    "13CO J=2-1": UVFits(f'observations_new/{disk}/13CO_cut.uvfits', sum=False),
+    "C18O J=2-1": UVFits(f'observations_new/{disk}/C18O_cut.uvfits', sum=False),
+    # "HCO+ J=3-2": UVFits('observations/HCO+_cut.uvfits', sum=False),
     # "CO J=2-1": UVFits('observations/s-Line-22-CO_1+D_cut.uvfits', sum=False),
     # "HCO+ J=3-2": UVFits('observations/s-Line-29-HCO+_1+D_cut.uvfits', sum=False),
 }
@@ -302,6 +303,7 @@ def model_in_directory(
     inner_radius = 11
     # tapering_gamma = 0.75
     velocity = 0.41
+    # velocity = 0.
     tapering_gamma = 1
 
     model = ModelFit(
@@ -362,9 +364,9 @@ class WB100auWithSmoothInnerGapTmidTazzari(WB100auWithSmoothInnerGap):
 
             Error if units are not consistent
         """
-        temperature_slope_mid = 0.55
+        temperature_slope_mid = 0.2
         temp_midplane = self.midplane_temperature_1au * (r.to(u.au) / u.au) ** (-temperature_slope_mid)
-        temp_midplane = (temp_midplane**4 + (10 * u.K)**4)**(1/4)
+        temp_midplane = (temp_midplane**4 + (7 * u.K)**4)**(1/4)
         temp_atmosphere = self.atmosphere_temperature_1au * (r.to(u.au) / u.au) ** (-self.temperature_slope)
         pressure_scalehight = (
                 (
