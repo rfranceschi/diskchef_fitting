@@ -8,4 +8,5 @@
 /observations_new
 /models
 /C18O_cobra
-/models
+co_hco+_3params.pkl
+co_hco+_dco+_3params_xray_lum_explored.pkl
